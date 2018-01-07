@@ -2,7 +2,8 @@
 python scripts for extracting data from rinf xml files and inserting them in a a database
 
 ### Requirements:
-python3, lxml
+* python3
+* lxml
 
 ### Usage:
 
