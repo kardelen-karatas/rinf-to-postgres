@@ -1,17 +1,19 @@
+import os
+from collections import namedtuple
 import argparse
 from lxml import etree
 import uuid
 
 
-def process_ms(ms):
+def process_ms(config, ms):
     global MEM_id
     MEM_id = ms.get("Code")
     MEM_version = ms.get("Version")
-    MEMBER_STATES_OUTPUT_FILE.write(MS_SQL_TEMPLATE % (MEM_id, MEM_version))
+    config.output_files.member_states.write(MS_SQL_TEMPLATE % (MEM_id, MEM_version))
 
 
 
-def process_op(op):
+def process_op(config, op):
     OPP_id = uuid.uuid1()
     OPP_uniqueid = op.find("UniqueOPID").get("Value")
     OPP_name = op.find("OPName").get("Value").replace("'", "''")
@@ -22,11 +24,11 @@ def process_op(op):
     OPP_date_end = op.get("ValidityDateEnd")
     OTY_id = op.find("OPType").get("Value")
     global MEM_id
-    OPERATIONAL_POINT_OUTPUT_FILE.write(OP_SQL_TEMPLATE % (OPP_id, OPP_uniqueid, OPP_name,OPP_taftapcode, OPP_lon, OPP_lat, OPP_date_start, OPP_date_end, OTY_id, MEM_id))
+    config.output_files.operational_point.write(OP_SQL_TEMPLATE % (OPP_id, OPP_uniqueid, OPP_name,OPP_taftapcode, OPP_lon, OPP_lat, OPP_date_start, OPP_date_end, OTY_id, MEM_id))
 
     OTY_id = op.find("OPType").get("Value")
     OTY_name = op.find("OPType").get("OptionalValue")
-    OP_TYPE_OUTPUT_FILE.write (OP_TYPE_SQL_TEMPLATE % (OTY_id, OTY_name, OTY_id))
+    config.output_files.op_type.write (OP_TYPE_SQL_TEMPLATE % (OTY_id, OTY_name, OTY_id))
 
 
     railway_locations = op.findall('OPRailwayLocation')
@@ -35,7 +37,7 @@ def process_op(op):
         #remonter au niveau de sol et recuperer le LINE and get son ID 
         RAL_distance = railway_location.get ("Kilometer").replace(",", ".")
         RAL_natid = railway_location.get ("NationalIdentNum")
-        RAILWAY_LOCATION_OUTPUT_FILE.write (RAILWAY_LOCATION_SQL_TEMPLATE % (RAL_id, RAL_distance, RAL_natid, OPP_id))
+        config.output_files.railway_location.write (RAILWAY_LOCATION_SQL_TEMPLATE % (RAL_id, RAL_distance, RAL_natid, OPP_id))
 
     optracks = op.findall('OPTrack')
     for optrack in optracks:
@@ -44,12 +46,12 @@ def process_op(op):
         OTR_imcode = optrack.find('OPTrackIMCode').get("Value")
         OTR_date_start = optrack.get("ValidityDateStart")
         OTR_date_end = optrack.get("ValidityDateEnd")
-        OP_TRACK_OUTPUT_FILE.write(OP_TRACK_SQL_TEMPLATE % (OTR_id,OTR_name, OTR_imcode,OTR_date_start,OTR_date_end,OPP_id))
+        config.output_files.op_track.write(OP_TRACK_SQL_TEMPLATE % (OTR_id,OTR_name, OTR_imcode,OTR_date_start,OTR_date_end,OPP_id))
         
         #PARAMETER_CATEGORY
         PCA_id = uuid.uuid1()
         PCA_name = optrack.get("ID")
-        PARAMETER_CATEGORY_OUTPUT_FILE.write(PARAMETER_CATEGORY_SQL_TEMPLATE % (PCA_id,PCA_name,PCA_name))
+        config.output_files.parameter_category.write(PARAMETER_CATEGORY_SQL_TEMPLATE % (PCA_id,PCA_name,PCA_name))
     
         #PARAMETER
         PAR_id = uuid.uuid1()
@@ -58,12 +60,12 @@ def process_op(op):
         ISA_isapplicable = optrack.find('OPTrackParameter').get("IsApplicable")
         TCA_en = 'OP_TRACK'
         #PCA_id = optrack.find('OPTrackParameter').get("ID")
-        PARAMETER_OUTPUT_FILE.write(PARAMETER_SQL_TEMPLATE % (PAR_id,PAR_value,PAR_opvalue,ISA_isapplicable,TCA_en,PCA_name))
+        config.output_files.parameter.write(PARAMETER_SQL_TEMPLATE % (PAR_id,PAR_value,PAR_opvalue,ISA_isapplicable,TCA_en,PCA_name))
 
 
         #OPTRACK PARAMETER
         OTRP_id = uuid.uuid1()
-        OP_TRACK_PARAMETER_OUTPUT_FILE.write(OP_TRACK_PARAMETER_SQL_TEMPLATE % (OTRP_id,PAR_id,OTR_id))
+        config.output_files.op_track_parameter.write(OP_TRACK_PARAMETER_SQL_TEMPLATE % (OTRP_id,PAR_id,OTR_id))
         
 
         optunnels = optrack.findall('OPTrackTunnel')
@@ -73,12 +75,12 @@ def process_op(op):
             OTU_imcode = optunnel.find('OPTrackTunnelIMCode').get("Value")
             OTU_date_start = optunnel.get("ValidityDateStart")
             OTU_date_end = optunnel.get("ValidityDateEnd")
-            OP_TRACK_TUNNEL_OUTPUT_FILE.write(OP_TRACK_TUNNEL_SQL_TEMPLATE % (OTU_id, OTU_name, OTU_imcode,OTU_date_start,OTU_date_end,OTR_id))
+            config.output_files.op_track_tunnel.write(OP_TRACK_TUNNEL_SQL_TEMPLATE % (OTU_id, OTU_name, OTU_imcode,OTU_date_start,OTU_date_end,OTR_id))
 
             #PARAMETER_CATEGORY
             PCA_id = uuid.uuid1()
             PCA_name = optunnel.get("ID")
-            PARAMETER_CATEGORY_OUTPUT_FILE.write(PARAMETER_CATEGORY_SQL_TEMPLATE % (PCA_id,PCA_name,PCA_name))
+            config.output_files.parameter_category.write(PARAMETER_CATEGORY_SQL_TEMPLATE % (PCA_id,PCA_name,PCA_name))
 
             #PARAMETER
             PAR_id = uuid.uuid1()
@@ -87,11 +89,11 @@ def process_op(op):
             ISA_isapplicable = optrack.find('OPTrackParameter').get("IsApplicable")
             TCA_en = 'OP_TRACK_TUNNEL'
             #PCA_id = optrack.find('OPTrackParameter').get("ID")
-            PARAMETER_OUTPUT_FILE.write(PARAMETER_SQL_TEMPLATE % (PAR_id,PAR_value,PAR_opvalue,ISA_isapplicable,TCA_en,PCA_name))
+            config.output_files.parameter.write(PARAMETER_SQL_TEMPLATE % (PAR_id,PAR_value,PAR_opvalue,ISA_isapplicable,TCA_en,PCA_name))
 
             #OP_TRACK_TUNNEL PARAMETER
             OTUP_id = uuid.uuid1()
-            OP_TRACK_TUNNEL_PARAMETER_OUTPUT_FILE.write(OP_TRACK_TUNNEL_PARAMETER_SQL_TEMPLATE % (OTUP_id,PAR_id,OTU_id))
+            config.output_files.op_track_tunnel_parameter.write(OP_TRACK_TUNNEL_PARAMETER_SQL_TEMPLATE % (OTUP_id,PAR_id,OTU_id))
     
 
         opplatforms = optrack.findall('OPTrackPlatform')
@@ -101,12 +103,12 @@ def process_op(op):
             OPL_imcode = opplatform.find('OPTrackPlatformIMCode').get("Value")
             OPL_date_start = opplatform.get("ValidityDateStart")
             OPL_date_end = opplatform.get("ValidityDateEnd")
-            OP_TRACK_PLATFORM_OUTPUT_FILE.write(OP_TRACK_PLATFORM_SQL_TEMPLATE % (OPL_id, OPL_name, OPL_imcode,OPL_date_start,OPL_date_end,OTR_id)) 
+            config.output_files.op_track_platform.write(OP_TRACK_PLATFORM_SQL_TEMPLATE % (OPL_id, OPL_name, OPL_imcode,OPL_date_start,OPL_date_end,OTR_id)) 
             
             #PARAMETER_CATEGORY
             PCA_id = uuid.uuid1()
             PCA_name = opplatform.get("ID")
-            PARAMETER_CATEGORY_OUTPUT_FILE.write(PARAMETER_CATEGORY_SQL_TEMPLATE % (PCA_id,PCA_name,PCA_name))
+            config.output_files.parameter_category.write(PARAMETER_CATEGORY_SQL_TEMPLATE % (PCA_id,PCA_name,PCA_name))
             
             #PARAMETER
             PAR_id = uuid.uuid1()
@@ -115,11 +117,11 @@ def process_op(op):
             ISA_isapplicable = optrack.find('OPTrackParameter').get("IsApplicable")
             TCA_en = 'OP_TRACK_PLATFORM'
             #PCA_id = optrack.find('OPTrackParameter').get("ID")
-            PARAMETER_OUTPUT_FILE.write(PARAMETER_SQL_TEMPLATE % (PAR_id,PAR_value,PAR_opvalue,ISA_isapplicable,TCA_en,PCA_name))
+            config.output_files.parameter.write(PARAMETER_SQL_TEMPLATE % (PAR_id,PAR_value,PAR_opvalue,ISA_isapplicable,TCA_en,PCA_name))
 
             #OP_TRACK_PLATFORM PARAMETER
             OPLP_id = uuid.uuid1()
-            OP_TRACK_PLATFORM_PARAMETER_OUTPUT_FILE.write(OP_TRACK_PLATFORM_PARAMETER_SQL_TEMPLATE % (OPLP_id,PAR_id,OPL_id))
+            config.output_files.op_track_platform_parameter.write(OP_TRACK_PLATFORM_PARAMETER_SQL_TEMPLATE % (OPLP_id,PAR_id,OPL_id))
     
 
     opsidings = op.findall('OPSiding')
@@ -129,33 +131,39 @@ def process_op(op):
         OPS_imcode = opsiding.find('OPSidingIMCode').get("Value")
         OPS_date_start = opsiding.get("ValidityDateStart")
         OPS_date_end = opsiding.get("ValidityDateEnd")
-        OP_SIDING_OUTPUT_FILE.write(OP_SIDING_SQL_TEMPLATE % (OSI_id, OPS_name, OPS_imcode,OPS_date_start,OPS_date_end,OPP_id))
+        config.output_files.op_siding.write(OP_SIDING_SQL_TEMPLATE % (OSI_id, OPS_name, OPS_imcode,OPS_date_start,OPS_date_end,OPP_id))
         
+                    
+        #PARAMETER_CATEGORY
+        PCA_id = uuid.uuid1()
+        PCA_name = opsiding.get("ID")
+        config.output_files.parameter_category.write(PARAMETER_CATEGORY_SQL_TEMPLATE % (PCA_id,PCA_name,PCA_name))
         
+
         #PARAMETER
         PAR_id = uuid.uuid1()
         PAR_value = opsiding.find('OPSidingParameter').get("Value")
         PAR_opvalue = opsiding.find('OPSidingParameter').get("OptionalValue")
         ISA_isapplicable = opsiding.find('OPSidingParameter').get("IsApplicable")
         TCA_en = 'OP_SIDING'
-        PCA_id = opsiding.find('OPSidingParameter').get("ID")
-        PARAMETER_OUTPUT_FILE.write(PARAMETER_SQL_TEMPLATE % (PAR_id,PAR_value,PAR_opvalue,ISA_isapplicable,TCA_en,PCA_id))
+        #PCA_id = opsiding.find('OPSidingParameter').get("ID")
+        config.output_files.parameter.write(PARAMETER_SQL_TEMPLATE % (PAR_id,PAR_value,PAR_opvalue,ISA_isapplicable,TCA_en,PCA_name))
 
-        #OP_SIDING PARAMETER
+        #OP_SIDING_PARAMETER
         OSIP_id = uuid.uuid1()
-        OP_SIDING_PARAMETER_OUTPUT_FILE.write(OP_SIDING_PARAMETER_SQL_TEMPLATE % (OSIP_id,PAR_id,OSI_id))
+        config.output_files.op_siding_parameter.write(OP_SIDING_PARAMETER_SQL_TEMPLATE % (OSIP_id,PAR_id,OSI_id))
 
         opsidingtunnels = opsiding.findall('OPSidingTunnel')
         for opsidingtunnel in opsidingtunnels:
             OST_id = uuid.uuid1()
             OST_name = opsidingtunnel.find('OPSidingIdentification').get('Value').replace("'", "''")
             OST_imcode = opsidingtunnel.find('OPSidingTunnelIMCode').get("Value")
-            OP_SIDING_TUNNEL_OUTPUT_FILE.write(OP_SIDING_TUNNEL_SQL_TEMPLATE % (OST_id,OST_imcode,OST_name,OSI_id))        
+            config.output_files.op_siding_tunnel.write(OP_SIDING_TUNNEL_SQL_TEMPLATE % (OST_id,OST_imcode,OST_name,OSI_id))        
             
             #PARAMETER_CATEGORY
             PCA_id = uuid.uuid1()
             PCA_name = opsidingtunnel.get("ID")
-            PARAMETER_CATEGORY_OUTPUT_FILE.write(PARAMETER_CATEGORY_SQL_TEMPLATE % (PCA_id,PCA_name,PCA_name))
+            config.output_files.parameter_category.write(PARAMETER_CATEGORY_SQL_TEMPLATE % (PCA_id,PCA_name,PCA_name))
         
             #PARAMETER
             PAR_id = uuid.uuid1()
@@ -163,16 +171,16 @@ def process_op(op):
             PAR_opvalue = opsidingtunnel.find('OPSidingTunnelParameter').get("OptionalValue")
             ISA_isapplicable = opsidingtunnel.find('OPSidingTunnelParameter').get("IsApplicable")
             TCA_en = 'OP_SIDING_TUNNEL'
-            PCA_id = opsidingtunnel.find('OPSidingTunnelParameter').get("ID")
-            PARAMETER_OUTPUT_FILE.write(PARAMETER_SQL_TEMPLATE % (PAR_id,PAR_value,PAR_opvalue,ISA_isapplicable,TCA_en,PCA_id))
+            #PCA_id = opsidingtunnel.find('OPSidingTunnelParameter').get("ID")
+            config.output_files.parameter.write(PARAMETER_SQL_TEMPLATE % (PAR_id,PAR_value,PAR_opvalue,ISA_isapplicable,TCA_en,PCA_name))
 
             #OP_SIDING_TUNNEL PARAMETER
             OSTP_id = uuid.uuid1()
-            OP_SIDING_TUNNEL_PARAMETER_OUTPUT_FILE.write(OP_SIDING_TUNNEL_PARAMETER_SQL_TEMPLATE % (OSTP_id,PAR_id,OST_id))
+            config.output_files.op_siding_tunnel_parameter.write(OP_SIDING_TUNNEL_PARAMETER_SQL_TEMPLATE % (OSTP_id,PAR_id,OST_id))
 
 
 
-def process_sol(sol):
+def process_sol(config, sol):
     global MEM_id
     SOL_id = uuid.uuid1()
     SOL_imcode = sol.find("SOLIMCode").get("Value")
@@ -183,11 +191,11 @@ def process_sol(sol):
     LIN_id = sol.find("SOLLineIdentification").get("Value")
     SOL_date_start = sol.get("ValidityDateStart")
     SOL_date_end = sol.get("ValidityDateEnd")
-    SECTION_OF_LINE_OUTPUT_FILE.write(SOL_SQL_TEMPLATE % (SOL_id, SOL_length, SOL_nature, SOL_imcode, MEM_id, SOL_date_start, SOL_date_end, LIN_id, OPP_start, OPP_end))
+    config.output_files.section_of_line.write(SOL_SQL_TEMPLATE % (SOL_id, SOL_length, SOL_nature, SOL_imcode, MEM_id, SOL_date_start, SOL_date_end, LIN_id, OPP_start, OPP_end))
 
     LIN_id = uuid.uuid1()
     LIN_name = sol.find("SOLLineIdentification").get("Value")
-    LINE_OUTPUT_FILE.write(LINE_SQL_TEMPLATE % (LIN_id, LIN_name, MEM_id, LIN_name))
+    config.output_files.line.write(LINE_SQL_TEMPLATE % (LIN_id, LIN_name, MEM_id, LIN_name))
 
     soltracks = sol.findall('SOLTrack')
     for soltrack in soltracks:
@@ -196,7 +204,7 @@ def process_sol(sol):
         STR_direction = soltrack.find('SOLTrackDirection').get("Value")
         STR_date_start = soltrack.get("ValidityDateStart")
         STR_date_end = soltrack.get("ValidityDateEnd")
-        SOL_TRACK_OUTPUT_FILE.write(SOL_TRACK_SQL_TEMPLATE %
+        config.output_files.sol_track.write(SOL_TRACK_SQL_TEMPLATE %
                                 (STR_id,STR_name, STR_direction,STR_date_start,STR_date_end,SOL_id))
 
         soltrack_parameters = soltrack.findall('SOLTrackParameter')
@@ -205,7 +213,7 @@ def process_sol(sol):
             #PARAMETER_CATEGORY
             PCA_id = uuid.uuid1()
             PCA_name = soltrack_parameter.get("ID")
-            PARAMETER_CATEGORY_OUTPUT_FILE.write(PARAMETER_CATEGORY_SQL_TEMPLATE % (PCA_id,PCA_name,PCA_name))
+            config.output_files.parameter_category.write(PARAMETER_CATEGORY_SQL_TEMPLATE % (PCA_id,PCA_name,PCA_name))
 
 
             #PARAMETER
@@ -215,11 +223,11 @@ def process_sol(sol):
             ISA_isapplicable = soltrack_parameter.get("IsApplicable")
             TCA_en = 'SOL_TRACK'
             PCA_id = soltrack_parameter.get("ID")
-            PARAMETER_OUTPUT_FILE.write(PARAMETER_SQL_TEMPLATE % (PAR_id,PAR_value,PAR_opvalue,ISA_isapplicable,TCA_en,PCA_id))
+            config.output_files.parameter.write(PARAMETER_SQL_TEMPLATE % (PAR_id,PAR_value,PAR_opvalue,ISA_isapplicable,TCA_en,PCA_id))
 
             #SOL_TRACK PARAMETER
             STRP_id = uuid.uuid1()
-            SOL_TRACK_PARAMETER_OUTPUT_FILE.write(SOL_TRACK_PARAMETER_SQL_TEMPLATE % (STRP_id,PAR_id,STR_id))
+            config.output_files.sol_track_parameter.write(SOL_TRACK_PARAMETER_SQL_TEMPLATE % (STRP_id,PAR_id,STR_id))
 
             location_points = soltrack_parameter.findall('LocationPoint')
             for location_point in location_points:
@@ -227,7 +235,7 @@ def process_sol(sol):
                 LOC_lon = location_point.get('Longitude').replace(",", ".")
                 LOC_lat = location_point.get("Latitude").replace(",", ".")
                 LOC_distance = location_point.get('Kilometer').replace(",", ".")
-                LOCATION_POINT_OUTPUT_FILE.write(LOCATION_POINT_SQL_TEMPLATE % (LOC_id,LOC_lon, LOC_lat,LOC_distance,STR_id,PAR_id))
+                config.output_files.location_point.write(LOCATION_POINT_SQL_TEMPLATE % (LOC_id,LOC_lon, LOC_lat,LOC_distance,STR_id,PAR_id))
 
 
         soltunnels = soltrack.findall('SOLTunnel')
@@ -241,14 +249,15 @@ def process_sol(sol):
             STU_endlat = soltunnel.find('SOLTunnelEnd').get("Latitude").replace(",", ".")
             STU_date_start = soltunnel.get("ValidityDateStart")
             STU_date_end = soltunnel.get("ValidityDateEnd")
-            SOL_TUNNEL_OUTPUT_FILE.write(SOL_TUNNEL_SQL_TEMPLATE % (STU_id, STU_name, STU_startlon, STU_startlat, STU_endlon, STU_endlat, STU_imcode,STU_date_start,STU_date_end,STR_id))
+            config.output_files.sol_tunnel.write(SOL_TUNNEL_SQL_TEMPLATE % (STU_id, STU_name, STU_startlon, STU_startlat, STU_endlon, STU_endlat, STU_imcode,STU_date_start,STU_date_end,STR_id))
 
             soltunnel_parameters = soltunnel.findall('SOLTunnelParameter')
             for soltunnel_parameter in soltunnel_parameters:
 
+                #PARAMETER_CATEGORY
                 PCA_id = uuid.uuid1()
                 PCA_name = soltunnel_parameter.get("ID")
-                PARAMETER_CATEGORY_OUTPUT_FILE.write(PARAMETER_CATEGORY_SQL_TEMPLATE % (PCA_id,PCA_name,PCA_name))
+                config.output_files.parameter_category.write(PARAMETER_CATEGORY_SQL_TEMPLATE % (PCA_id,PCA_name,PCA_name))
 
                 #PARAMETER
                 PAR_id = uuid.uuid1()
@@ -256,30 +265,29 @@ def process_sol(sol):
                 PAR_opvalue = soltunnel_parameter.get("OptionalValue")
                 ISA_isapplicable = soltunnel_parameter.get("IsApplicable")
                 TCA_en = 'SOL_TUNNEL'
-                PCA_id = soltunnel_parameter.get("ID")
-                PARAMETER_OUTPUT_FILE.write(PARAMETER_SQL_TEMPLATE % (PAR_id,PAR_value,PAR_opvalue,ISA_isapplicable,TCA_en,PCA_id))
+                #PCA_id = soltunnel_parameter.get("ID")
+                config.output_files.parameter.write(PARAMETER_SQL_TEMPLATE % (PAR_id,PAR_value,PAR_opvalue,ISA_isapplicable,TCA_en,PCA_name))
 
                 #SOL_TUNEEL PARAMETER
                 STTP_id = uuid.uuid1()
-                SOL_TUNNEL_PARAMETER_OUTPUT_FILE.write(SOL_TUNNEL_PARAMETER_SQL_TEMPLATE % (STTP_id,PAR_id,STU_id))
+                config.output_files.sol_tunnel_parameter.write(SOL_TUNNEL_PARAMETER_SQL_TEMPLATE % (STTP_id,PAR_id,STU_id))
 
 
-def fast_iter(context):
+def fast_iter(config, context):
 
     for event, elem in context:
         if elem.tag == 'MemberStateCode':
             if event == 'end':
-                process_ms(elem)
+                process_ms(config, elem)
                 elem.clear()
         elif elem.tag == 'OperationalPoint':
             if event == 'end':
-                process_op(elem)
+                process_op(config, elem)
                 elem.clear()
         elif elem.tag == 'SectionOfLine':
             if event == 'end':
-                process_sol(elem)
+                process_sol(config, elem)
                 elem.clear()
-
     del context
 
 
@@ -307,7 +315,7 @@ OP_TRACK_TUNNEL_SQL_TEMPLATE = "INSERT INTO OP_TRACK_TUNNEL (OTU_id, OTU_name, O
 
 OP_TRACK_PLATFORM_SQL_TEMPLATE = "INSERT INTO OP_TRACK_PLATFORM (OPL_id, OPL_name, OPL_imcode,OPL_date_start,OPL_date_end,OTR_id) VALUES ('%s','%s','%s','%s','%s','%s');\n"
 
-OP_SIDING_TUNNEL_SQL_TEMPLATE = "INSERT INTO OP_SIDING_TUNNEL_SPARAMETER (OST_id,OST_imcode,OST_name,OSI_id) VALUES ('%s','%s','%s','%s');\n"
+OP_SIDING_TUNNEL_SQL_TEMPLATE = "INSERT INTO OP_SIDING_TUNNEL (OST_id,OST_imcode,OST_name,OSI_id) VALUES ('%s','%s','%s','%s');\n"
 
 PARAMETER_CATEGORY_SQL_TEMPLATE = "INSERT INTO PARAMETER_CATEGORY (PCA_id,PCA_name) SELECT '%s','%s' WHERE NOT exists (SELECT 1 FROM PARAMETER_CATEGORY WHERE PCA_name = '%s');\n"
 
@@ -325,114 +333,65 @@ OP_TRACK_TUNNEL_PARAMETER_SQL_TEMPLATE = "INSERT INTO OP_TRACK_TUNNEL_PARAMETER 
 
 OP_TRACK_PLATFORM_PARAMETER_SQL_TEMPLATE = "INSERT INTO OP_TRACK_PLATFORM_PARAMETER (OPLP_id,PAR_id,OPL_id) VALUES ('%s','%s','%s');\n"
 
-OP_SIDING_PARAMETER_SQL_TEMPLATE = "INSERT INTO OP_SIDING_PARAMETER_PARAMETER (OSIP_id,PAR_id,OSI_id) VALUES ('%s','%s','%s');\n"
+OP_SIDING_PARAMETER_SQL_TEMPLATE = "INSERT INTO OP_SIDING_PARAMETER (OSIP_id,PAR_id,OSI_id) VALUES ('%s','%s','%s');\n"
 
-OP_SIDING_TUNNEL_PARAMETER_SQL_TEMPLATE = "INSERT INTO OP_SIDING_TUNNEL_PARAMETER_PARAMETER (OSTP_id,PAR_id,OST_id) VALUES ('%s','%s','%s');\n"
-
-MEM_id = ''
-LIN_id = ''
+OP_SIDING_TUNNEL_PARAMETER_SQL_TEMPLATE = "INSERT INTO OP_SIDING_TUNNEL_PARAMETER (OSTP_id,PAR_id,OST_id) VALUES ('%s','%s','%s');\n"
 
 
-parser = argparse.ArgumentParser(
-    description="Extracts data from rinf xml file and outputs sql statements in separate files")
-parser.add_argument('--rinf', help="input rinf xml file", required=True)
-arguments = parser.parse_args()
+Config = namedtuple('Config', 'current_mem_id input_file output_dir output_files')
+OutputFiles = namedtuple('OutputFiles', 'member_states line op_type operational_point section_of_line op_track op_siding sol_track railway_location sol_tunnel op_track_tunnel op_track_platform op_siding_tunnel sol_track_parameter sol_tunnel_parameter location_point op_track_parameter op_track_tunnel_parameter op_track_platform_parameter op_siding_parameter op_siding_tunnel_parameter parameter parameter_category')
+
+def init_config(input_file, output_dir, create_dir=False):
+    output_dir = output_dir.rstrip('/')
+    if create_dir:
+        os.makedirs(output_dir)
+    elif not os.path.isdir(output_dir):
+        raise Exception('output dir does not exist!')
+    output_files = OutputFiles(
+        open('%s/member_states.sql' % output_dir, 'w'),
+        open('%s/line.sql' % output_dir, 'w'),
+        open('%s/op_type.sql' % output_dir, 'w'),
+        open('%s/operational_point.sql' % output_dir, 'w'),
+        open('%s/section_of_line.sql' % output_dir, 'w'),
+        open('%s/op_track.sql' % output_dir, 'w'),
+        open('%s/op_siding.sql' % output_dir, 'w'),
+        open('%s/sol_track.sql' % output_dir, 'w'),
+        open('%s/railway_location.sql' % output_dir, 'w'),
+        open('%s/sol_tunnel.sql' % output_dir, 'w'),
+        open('%s/op_track_tunnel.sql' % output_dir, 'w'),
+        open('%s/op_track_platform.sql' % output_dir, 'w'),
+        open('%s/op_siding_tunnel.sql' % output_dir, 'w'),
+        open('%s/sol_track_parameter.sql' % output_dir, 'w'),
+        open('%s/sol_tunnel_parameter.sql' % output_dir, 'w'),
+        open('%s/location_point.sql' % output_dir, 'w'),
+        open('%s/op_track_parameter.sql' % output_dir, 'w'),
+        open('%s/op_track_tunnel_parameter.sql' % output_dir, 'w'),
+        open('%s/op_track_platform_parameter.sql' % output_dir, 'w'),
+        open('%s/op_siding_parameter.sql' % output_dir, 'w'),
+        open('%s/op_siding_tunnel_parameter.sql' % output_dir, 'w'),
+        open('%s/parameter.sql' % output_dir, 'w'),
+        open('%s/parameter_category.sql' % output_dir, 'w')
+    )
+    config = Config(current_mem_id='', input_file=input_file, output_dir=output_dir, output_files=output_files)
+    return config
 
 
-MEMBER_STATES_OUTPUT_FILE = open('member_states.sql', 'w')
-
-LINE_OUTPUT_FILE = open('line.sql', 'w')
-
-OP_TYPE_OUTPUT_FILE = open('op_type.sql', 'w')
-
-OPERATIONAL_POINT_OUTPUT_FILE = open('operational_point.sql', 'w')
-
-SECTION_OF_LINE_OUTPUT_FILE = open('section_of_line.sql', 'w')
-
-OP_TRACK_OUTPUT_FILE = open('op_track.sql', 'w')
-
-OP_SIDING_OUTPUT_FILE = open('op_siding.sql', 'w')
-
-SOL_TRACK_OUTPUT_FILE = open('sol_track.sql', 'w')
-
-RAILWAY_LOCATION_OUTPUT_FILE = open('railway_location.sql', 'w')
-
-SOL_TUNNEL_OUTPUT_FILE = open('sol_tunnel.sql', 'w')
-
-OP_TRACK_TUNNEL_OUTPUT_FILE = open('op_track_tunnel.sql', 'w')
-
-OP_TRACK_PLATFORM_OUTPUT_FILE = open('op_track_platform.sql', 'w')
-
-OP_SIDING_TUNNEL_OUTPUT_FILE = open('op_siding_tunnel.sql', 'w')
-
-SOL_TRACK_PARAMETER_OUTPUT_FILE = open('sol_track_parameter.sql', 'w')
-
-SOL_TUNNEL_PARAMETER_OUTPUT_FILE = open('sol_tunnel_parameter.sql', 'w')
-
-LOCATION_POINT_OUTPUT_FILE = open('location_point.sql','w')
-
-OP_TRACK_PARAMETER_OUTPUT_FILE = open('op_track_parameter.sql', 'w')
-
-OP_TRACK_TUNNEL_PARAMETER_OUTPUT_FILE = open('op_track_tunnel_parameter.sql', 'w')
-
-OP_TRACK_PLATFORM_PARAMETER_OUTPUT_FILE = open('op_track_platform_parameter.sql', 'w')
-
-OP_SIDING_PARAMETER_OUTPUT_FILE = open('op_siding_parameter.sql', 'w')
-
-OP_SIDING_TUNNEL_PARAMETER_OUTPUT_FILE = open('op_siding_tunnel_parameter.sql', 'w')
-
-PARAMETER_OUTPUT_FILE = open('parameter.sql', 'w')
-
-PARAMETER_CATEGORY_OUTPUT_FILE = open('parameter_category.sql', 'w')
-
-context = etree.iterparse(arguments.rinf)
-fast_iter(context)
+def close_output_files(config):
+    for output_file in config.output_files:
+        output_file.close()
 
 
-MEMBER_STATES_OUTPUT_FILE.close()
+def extract_data(config):
+    context = etree.iterparse(config.input_file)
+    fast_iter(config, context)
+    close_output_files(config)
 
-LINE_OUTPUT_FILE.close()
 
-OP_TYPE_OUTPUT_FILE.close()
-
-OPERATIONAL_POINT_OUTPUT_FILE.close()
-
-SECTION_OF_LINE_OUTPUT_FILE.close()
-
-SOL_TRACK_OUTPUT_FILE.close()
-
-SOL_TRACK_PARAMETER_OUTPUT_FILE.close()
-
-SOL_TUNNEL_OUTPUT_FILE.close()
-
-SOL_TUNNEL_PARAMETER_OUTPUT_FILE.close()
-
-LOCATION_POINT_OUTPUT_FILE.close()
-
-RAILWAY_LOCATION_OUTPUT_FILE.close()
-
-OP_TRACK_OUTPUT_FILE.close()
-
-OP_TRACK_PARAMETER_OUTPUT_FILE.close()
-
-OP_TRACK_TUNNEL_OUTPUT_FILE.close()
-
-OP_TRACK_TUNNEL_PARAMETER_OUTPUT_FILE.close()
-
-OP_TRACK_PLATFORM_OUTPUT_FILE.close()
-
-OP_TRACK_PLATFORM_PARAMETER_OUTPUT_FILE.close()
-
-OP_SIDING_OUTPUT_FILE .close()
-
-OP_SIDING_PARAMETER_OUTPUT_FILE .close()
-
-OP_SIDING_TUNNEL_OUTPUT_FILE.close()
-
-OP_SIDING_TUNNEL_PARAMETER_OUTPUT_FILE.close()
-
-OP_SIDING_TUNNEL_PARAMETER_OUTPUT_FILE.close()
-
-PARAMETER_OUTPUT_FILE.close()
-
-PARAMETER_CATEGORY_OUTPUT_FILE.close()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description="Extracts data from rinf xml file and outputs sql statements in separate files")
+    parser.add_argument('--rinf', help="input rinf xml file", required=True)
+    parser.add_argument('--output-dir', help="output directory", required=True)
+    arguments = parser.parse_args()
+    config = init_config(arguments.rinf, arguments.output_dir)
+    extract_data(config)
