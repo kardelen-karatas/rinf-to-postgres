@@ -2,7 +2,6 @@ import os
 from collections import namedtuple
 import argparse
 from lxml import etree
-from shapely.geometry import Point, LineString, MultiPoint
 import uuid
 import pprint
 from collections import defaultdict
